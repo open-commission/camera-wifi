@@ -16,9 +16,6 @@
 #define UART_PORT      UART_NUM_0
 #define UART_RX_BUF    256
 
-/* UART RX task */
-static void uart_rx_task(void* arg);
-
 /* 一键初始化 UART0（RTOS 正确方式） */
 void uart_tool_init(uint32_t baudrate)
 {
@@ -40,15 +37,6 @@ void uart_tool_init(uint32_t baudrate)
         NULL,
         0
     );
-
-    xTaskCreate(
-        uart_rx_task,
-        "uart_rx",
-        2048,
-        NULL,
-        10,
-        NULL
-    );
 }
 
 /* 发送字符串 */
@@ -64,7 +52,7 @@ void uart_tool_send_len(const uint8_t* data, uint16_t len)
 }
 
 /* UART RX task（代替中断） */
-static void uart_rx_task(void* arg)
+void uart_rx_task(void* arg)
 {
     uint8_t buf[64];
 
