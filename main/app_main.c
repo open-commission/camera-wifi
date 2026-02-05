@@ -7,16 +7,16 @@
 void app_main(void)
 {
     /* 1. 初始化 UART */
-    uart_tool_init(74880);
+    uart_tool_init(115200);
 
     xTaskCreate(mqtt_task,
                 "mqtt_task",
-                4096,
+                12288,
                 NULL,
                 5,
                 NULL);
 
-    vTaskDelay(pdMS_TO_TICKS(3000));
+    vTaskDelay(pdMS_TO_TICKS(5000));
 
     xTaskCreate(
         uart_rx_task,

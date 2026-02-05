@@ -22,21 +22,31 @@
 
 static const char* TAG = "MQTT_EXAMPLE";
 
-esp_mqtt_client_handle_t client = NULL;
+static esp_mqtt_client_handle_t mqtt_client = NULL;
+static bool mqtt_ready = false;
+
+bool mqtt_is_ready(void)
+{
+    return mqtt_ready;
+}
+esp_mqtt_client_handle_t mqtt_get_client(void)
+{
+    return mqtt_client;
+}
 
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 {
     char buf[256];
-    client = event->client;
-    int msg_id;
 
     switch (event->event_id)
     {
     case MQTT_EVENT_CONNECTED:
+        mqtt_ready = true;
         uart_tool_send("[MQTT] CONNECTED\r\n");
         break;
 
     case MQTT_EVENT_DISCONNECTED:
+        mqtt_ready = false;
         uart_tool_send("[MQTT] DISCONNECTED\r\n");
         break;
 
@@ -102,9 +112,14 @@ static void mqtt_app_start(void)
         .uri = CONFIG_BROKER_URL,
     };
 
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
-    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
-    esp_mqtt_client_start(client);
+    mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
+    if (!mqtt_client) {
+        uart_tool_send("[MQTT] INIT FAILED\r\n");
+        return;
+    }
+
+    esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, mqtt_client);
+    esp_mqtt_client_start(mqtt_client);
 }
 
 void mqtt_task(void* param)
@@ -118,4 +133,9 @@ void mqtt_task(void* param)
     ESP_ERROR_CHECK(example_connect());
 
     mqtt_app_start();
+
+    while (1)
+    {
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 每秒延时
+    }
 }

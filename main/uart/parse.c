@@ -33,6 +33,14 @@ void ICACHE_FLASH_ATTR uart_parser_reset(void)
 /* 字节流入口 */
 void ICACHE_FLASH_ATTR uart_parser_feed(uint8_t byte)
 {
+    if (!mqtt_is_ready())
+    {
+        return; // MQTT 未就绪 → 丢弃所有 UART 输入
+    }
+    char byte_buf[2];
+    sprintf(byte_buf, "%c", byte);
+    uart_tool_send(byte_buf);
+
     /* 新命令强制清空旧缓冲 */
     if (byte == '@')
     {
@@ -77,6 +85,9 @@ static void ICACHE_FLASH_ATTR parser_try_parse(void)
     char* arg1 = strtok(NULL, "@");
     char* arg2 = strtok(NULL, "@");
 
+    char buf[1024];
+    sprintf(buf, "cmd=%s, arg1=%s, arg2=%s\r\n", cmd, arg1, arg2);
+
     if (!cmd || !arg1)
     {
         return;
@@ -104,7 +115,11 @@ static void ICACHE_FLASH_ATTR parser_try_parse(void)
     }
 
     /* 回调给用户 */
-    uart_parser_on_frame(&frame);
+    if (!mqtt_is_ready())
+    {
+        uart_parser_reset();
+        return;
+    }
 
     /* 一帧解析完成后必须清空 */
     uart_parser_reset();
@@ -113,12 +128,26 @@ static void ICACHE_FLASH_ATTR parser_try_parse(void)
 
 void uart_parser_on_frame(uart_cmd_frame_t* frame)
 {
+    if (!mqtt_is_ready())
+    {
+        uart_tool_send("[MQTT] not ready\r\n");
+        return;
+    }
+
+    esp_mqtt_client_handle_t client = mqtt_get_client();
+    if (!client)
+    {
+        uart_tool_send("[MQTT] client null\r\n");
+        return;
+    }
+
     int msg_id;
     char msg_buf[128];
+
     switch (frame->cmd)
     {
     case UART_CMD_PUB:
-        msg_id = esp_mqtt_client_publish(client, frame->payload, frame->payload, 0, 1, 0);
+        msg_id = esp_mqtt_client_publish(client, frame->topic, frame->payload, strlen(frame->payload), 1, 0);
         sprintf(msg_buf, "sent publish successful, msg_id=%d\r\n", msg_id);
         uart_tool_send(msg_buf);
         break;
